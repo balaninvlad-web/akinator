@@ -146,7 +146,8 @@ Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, 
                 printf ("\nDEBUG: Data read: '%s'\n", data);
             #endif
 
-            strcpy(node->data, data);
+            free(node->data);
+            node->data = strdup(data);
 
             #ifdef DEBUG
                 printf ("DEBUG: Node data set to: '%s'\n", node->data);

@@ -166,17 +166,20 @@ TreeErr_t AddNewObject(Tree_t* tree, Node_t* current_node)
     char answer[10] = {};
     fgets(answer, sizeof(answer), stdin);
 
-    char old_data[MAX_STR_SIZE] = {};
-    strcpy(old_data, current_node->data);
+    char* old_data = strdup(current_node->data);
 
-    strcpy(current_node->data, new_question);
+    free(current_node->data);
+    current_node->data = strdup(new_question);
 
     Node_t* yes_node = NodeCtor(tree, new_data);
     Node_t* no_node = NodeCtor(tree, old_data);
 
+    free(old_data);
+
     if (!yes_node || !no_node)
     {
-        strcpy(current_node->data, old_data);
+        free(current_node->data);
+        current_node->data = strdup(old_data);
         return ERORRNODENULL;
     }
 

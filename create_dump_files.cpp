@@ -511,7 +511,7 @@ void PrintBuffer (FILE* html_file, const char* buffer_start, size_t position)
             (int)(show_len - position), buffer_start + position);
     fprintf(html_file, "</div>\n");
 
-    size_t len = strlen(buffer);
+    size_t len = strlen(buffer_start);
     if (len > 0)
     {
         int percent = (int)((position * 100) / len);

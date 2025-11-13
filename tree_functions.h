@@ -13,11 +13,11 @@ extern const int DUMMY_VALUE;
 const int MAX_STR_SIZE = 100;
 
 typedef int TreeErr_t;
-typedef char tree_elem_t;
+typedef char* tree_elem_t;
 
 typedef struct Node_t
 {
-    tree_elem_t data[MAX_STR_SIZE];
+    char* data;
     struct Node_t* left;
     struct Node_t* right;
 } Node_t;
@@ -59,7 +59,7 @@ enum
 };
 
 TreeErr_t TreeCtor (Tree_t** tree);
-Node_t* NodeCtor (Tree_t* tree, const tree_elem_t* value);
+Node_t* NodeCtor (Tree_t* tree, const char* value);
 TreeErr_t TreeDtor (Tree_t* tree);
 
 TreeErr_t PrintNode (const Node_t* node);
@@ -72,22 +72,22 @@ TreeErr_t TreeInsertLeft (Tree_t* tree, Node_t* parent, const char* answer);
 TreeErr_t TreeInsertRight (Tree_t* tree, Node_t* parent, const char* answer);
 TreeErr_t DeleteSubtree (Tree_t* tree, Node_t** node);
 
-TreeErr_t GuessObject(Tree_t* tree, Node_t* current_node);
-void PrintMenu();
-void AkinatorMenu(Tree_t* tree);
-TreeErr_t AddNewObject(Tree_t* tree, Node_t* current_node);
+TreeErr_t GuessObject (Tree_t* tree, Node_t* current_node);
+void PrintMenu ();
+void AkinatorMenu (Tree_t* tree);
+TreeErr_t AddNewObject (Tree_t* tree, Node_t* current_node);
 
 int DescribeObject(Node_t* current_node, const char* word);
 
 TreeErr_t SaveTreeToFile(Node_t* node, FILE* file);
-TreeErr_t SaveDatabase(Tree_t* tree, const char* filename);
-Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, LoadProgress* progress, const char* buffer_start);
+TreeErr_t SaveDatabase (Tree_t* tree, const char* filename);
+Node_t* LoadTreeFromFile (Tree_t* tree, const char** buffer, int* pos_in_buffer, LoadProgress* progress, const char* buffer_start);
 const char* ReadQuotedString (const char* current, char* output, int max_len);
 const char* SkipSpaces (const char* str, int* pos_in_buffer);
-TreeErr_t LoadDatabase(Tree_t* tree, const char* filename);
+TreeErr_t LoadDatabase (Tree_t* tree, const char* filename);
 
-void InitLoadProgress(LoadProgress* progress);
-void AddNodeToLoadProgress(LoadProgress* progress, Node_t* node);
-void FreeLoadProgress(LoadProgress* progress);
+void InitLoadProgress (LoadProgress* progress);
+void AddNodeToLoadProgress (LoadProgress* progress, Node_t* node);
+void FreeLoadProgress (LoadProgress* progress);
 
 #endif

@@ -42,7 +42,7 @@ TreeErr_t TreeCtor (Tree_t** tree)
     return NOERORR;
 }
 
-TreeErr_t TreeInsertLeft (Tree_t* tree, Node_t* parent, const tree_elem_t* answer)
+TreeErr_t TreeInsertLeft (Tree_t* tree, Node_t* parent, const char* answer)
 {
     if (!tree || !parent) return ERORRNODENULL;
 
@@ -59,7 +59,7 @@ TreeErr_t TreeInsertLeft (Tree_t* tree, Node_t* parent, const tree_elem_t* answe
     return NOERORR;
 }
 
-TreeErr_t TreeInsertRight (Tree_t* tree, Node_t* parent, const tree_elem_t* answer)
+TreeErr_t TreeInsertRight (Tree_t* tree, Node_t* parent, const char* answer)
 {
     if (!tree || !parent) return ERORRNODENULL;
 
@@ -93,7 +93,7 @@ TreeErr_t TreeInsertRoot (Tree_t* tree, const char* question)
     return NOERORR;
 }
 
-Node_t* NodeCtor (Tree_t* tree, const tree_elem_t* value)
+Node_t* NodeCtor (Tree_t* tree, const char* value)
 {
     assert(tree);
 
@@ -106,8 +106,26 @@ Node_t* NodeCtor (Tree_t* tree, const tree_elem_t* value)
         return NULL;
     }
 
-    strncpy (new_node->data, value, MAX_STR_SIZE - 1);
-    new_node->data[MAX_STR_SIZE - 1] ='\0';
+    if (value)
+    {
+        new_node->data = strdup(value);
+        if (!new_node->data)
+        {
+            fprintf(stderr, "ERROR: in NodeCtor - strdup failed\n");
+            free(new_node);
+            return NULL;
+        }
+    }
+    else
+    {
+        new_node->data = strdup("");
+        if (!new_node->data)
+        {
+            fprintf(stderr, "ERROR: in NodeCtor - strdup failed for empty string\n");
+            free(new_node);
+            return NULL;
+        }
+    }
     new_node->left= NULL;
     new_node->right = NULL;
 
@@ -119,6 +137,7 @@ TreeErr_t TreeDtor (Tree_t* tree)
     if (!tree) return ERORRNODENULL;
 
     DeleteSubtree (tree, &tree->root);
+    free (tree->dummy->data);
     free (tree->dummy);
     free (tree);
 
@@ -234,6 +253,7 @@ TreeErr_t DeleteSubtree (Tree_t* tree, Node_t** node)
         DeleteSubtree (tree, &node_2_delete->right);
     }
 
+    free (node_2_delete->data);
     *node = NULL;
     free (node_2_delete);
     tree->size--;
