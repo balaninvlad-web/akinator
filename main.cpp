@@ -30,7 +30,7 @@ int main ()
 
     AkinatorMenu(Tree);
 
-    Create_log_file (Tree, "tree_dump.dot");
+    Create_log_file (Tree, "tree_dump.dot", DUMP_NORMAL, NULL);
 
     system("dot -V");
 }

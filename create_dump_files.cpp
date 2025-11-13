@@ -2,17 +2,38 @@
 
 const int MAX_COMMAND_LENGTH  = 200;
 
-void Create_log_file (Tree_t* tree, const char* filename)
+void Create_log_file (Tree_t* tree, const char* filename, int dump_type, LoadProgress* progress)
 {
     assert (tree);
+    assert (filename);
 
     FILE* dot_file = fopen (filename, "w");
 
-    Create_head_log_file (dot_file, tree);
+    if (!dot_file) return;
 
-    Create_graph_node (tree, dot_file, tree->root);
+    #ifdef DEBUG
+        printf ("DEBUG: Creating DOT file, tree->root = %p, tree->size = %d\n", (void*)tree->root, tree->size);
+    #endif
 
-    Make_arrow (tree, dot_file, tree->root);
+    Create_head_log_file (dot_file);
+
+    if (dump_type == DUMP_LOAD && progress && progress->size > 0)
+    {
+        Create_load_graph(tree, dot_file, progress);
+    }
+    else
+    {
+        if (tree->root == NULL)
+        {
+            fprintf(dot_file, "    empty [label=\"EMPTY TREE\\nRoot: NULL\\nSize: %u\", "
+                             "shape=box, color=red, fontcolor=white];\n", (unsigned)tree->size);
+        }
+        else
+        {
+            Create_graph_node(tree, dot_file, tree->root);
+            Make_arrow(tree, dot_file, tree->root);
+        }
+    }
 
     fprintf (dot_file,"}\n}\n");
 
@@ -21,11 +42,13 @@ void Create_log_file (Tree_t* tree, const char* filename)
     Create_picture ();
 }
 
-void Create_head_log_file (FILE* dot_file, Tree_t* tree)
+void Create_head_log_file (FILE* dot_file)
 {
     assert (dot_file);
 
-    printf ("START Writing TO file.....\n");
+    #ifdef DEBUG
+        printf ("DEBUG: START Writing TO file.....\n");
+    #endif
 
     fprintf (dot_file,"digraph tree{\n");
     fprintf (dot_file, "    charset=\"UTF-8\";\n");
@@ -41,15 +64,124 @@ void Create_head_log_file (FILE* dot_file, Tree_t* tree)
     fprintf (dot_file, "    edge [fontname=\"Arial\"];\n\n");
 
     fprintf (dot_file, "    labelloc=\"t\";\n");
-    fprintf (dot_file, "    label=\"Tree size: %d\\nRoot: %p\";\n", tree->size, (void*)tree->root);
-
     fprintf (dot_file,"{\n");
+}
+
+void Create_load_graph (Tree_t* tree, FILE* dot_file, LoadProgress* progress)
+{
+    assert(tree);
+    assert(dot_file);
+    assert(progress);
+
+    #ifdef DEBUG
+        printf ("DEBUG: Creating load graph with %u tracked nodes\n", (unsigned)progress->size);
+    #endif
+
+    for (size_t i = 0; i < progress->size; i++)
+    {
+        Node_t* node = progress->nodes[i].node;
+        size_t rank = progress->nodes[i].rank;
+
+        if (node == NULL) continue;
+
+        Create_load_node(tree, dot_file, node, rank);
+    }
+
+    size_t max_rank = 0;
+    for (size_t i = 0; i < progress->size; i++)
+    {
+        if (progress->nodes[i].rank > max_rank)
+            max_rank = progress->nodes[i].rank;
+    }
+
+
+    for (size_t rank = 0; rank <= max_rank; rank++)
+    {
+        fprintf (dot_file, "    { rank = same; ");
+        for (size_t i = 0; i < progress->size; i++)
+        {
+            if (progress->nodes[i].rank == rank)
+                fprintf(dot_file, "node%p; ", (void*)progress->nodes[i].node);
+        }
+        fprintf (dot_file, "}\n");
+    }
+
+    for (size_t i = 0; i < progress->size; i++)
+    {
+        Node_t* node = progress->nodes[i].node;
+        if (node == NULL) continue;
+
+        Create_load_arrows (tree, dot_file, node);
+    }
+}
+
+void Create_load_node (Tree_t* tree, FILE* dot_file, Node_t* node, size_t rank)
+{
+    assert (tree);
+    assert (dot_file);
+    assert (node);
+
+    const char* fillcolor = "";
+    const char* color = "black";
+
+    if (node == tree->root)
+    {
+        fillcolor = "#5f3035";
+        color = "#fdfdfd";
+    }
+    else if (node->right == NULL && node->left == NULL)
+    {
+        fillcolor = "#445c00";
+        color = "#fdfdfd";
+    }
+    else
+    {
+        fillcolor = "#2799a0";
+        color = "#fdfdfd";
+    }
+
+    char escaped_data[MAX_STR_SIZE * 2] = {0};
+    EscapeHtml(node->data, escaped_data, sizeof(escaped_data));
+
+    fprintf(dot_file,
+        "    node%p [label=<<TABLE BORDER='1' CELLBORDER='1' CELLSPACING='0'>"
+        "<TR><TD COLSPAN='2'>%u</TD></TR>"
+        "<TR><TD COLSPAN='2'>%s</TD></TR>"
+        "<TR><TD>NO</TD><TD>YES</TD></TR></TABLE>>, "
+        "fillcolor=\"%s\", color=\"%s\", fontcolor=\"%s\"];\n",
+        (void*)node, (unsigned)rank, escaped_data, fillcolor, color, color);
+
+    #ifdef DEBUG
+        printf ("DEBUG: LOADBLOCK Writing TO file.....\n");
+    #endif
+}
+
+void Create_load_arrows(Tree_t* tree, FILE* dot_file, Node_t* node)
+{
+    assert(tree);
+    assert(dot_file);
+    assert(node);
+
+    if (node->left && node->left != tree->dummy)
+    {
+        fprintf(dot_file,
+            "    node%p -> node%p [color=\"#ffadb1\", penwidth=2, label=\"NO\", "
+            "fontcolor=\"#ffadb1\", fontsize=12, arrowsize=0.7];\n",
+            (void*)node, (void*)node->left);
+    }
+
+    if (node->right && node->right != tree->dummy)
+    {
+        fprintf(dot_file,
+            "    node%p -> node%p [color=\"#adebff\", penwidth=2, label=\"YES\", "
+            "fontcolor=\"#adebff\", fontsize=12, arrowsize=0.7];\n",
+            (void*)node, (void*)node->right);
+    }
 }
 
 void Create_graph_node (Tree_t* tree, FILE* dot_file, Node_t* node)
 {
     assert (tree);
-
     assert (dot_file);
 
     if (node == tree->dummy || node == NULL) return;
@@ -59,17 +191,17 @@ void Create_graph_node (Tree_t* tree, FILE* dot_file, Node_t* node)
 
     if (node == tree->root)
     {
-        fillcolor = "#5f3035";  // Корень
+        fillcolor = "#5f3035";
         color = "#fdfdfd";
     }
     else if (node->right == NULL && node->left == NULL)
     {
-        fillcolor = "#445c00";  // Свободный узел обьекты
+        fillcolor = "#445c00";
         color = "#fdfdfd";
     }
     else
     {
-        fillcolor = "#2799a0";  // Обычный узел вопросы
+        fillcolor = "#2799a0";
         color = "#fdfdfd";
     }
 
@@ -82,7 +214,9 @@ void Create_graph_node (Tree_t* tree, FILE* dot_file, Node_t* node)
             "fillcolor=\"%s\", color=\"%s\", fontcolor=\"%s\"];\n",
             (void*)node, escaped_data, fillcolor, color, color);
 
-    printf ("BLOCKS Writing TO file.....\n");
+    #ifdef DEBUG
+        printf ("DEBUG: BLOCKS Writing TO file.....\n");
+    #endif
 
     Create_graph_node (tree, dot_file, node->left);
 
@@ -97,7 +231,9 @@ void Make_arrow (Tree_t* tree, FILE* dot_file, Node_t* node)
 
     if (node == tree->dummy || node == NULL) return;
 
-    printf("Make_arrow: creating connections...\n");
+    #ifdef DEBUG
+        printf("DEBUG: Make_arrow: creating connections...\n");
+    #endif
 
     if (node->right)
     {
@@ -126,81 +262,79 @@ void Create_picture (void)
 
     system (command);
 
-    printf ("dot -Tpng tree_dump.dot -o imagesDump/tree_dump%d.png", image_counter);
+    #ifdef DEBUG
+        printf ("dot -Tpng tree_dump.dot -o imagesDump/tree_dump%d.png", image_counter);
+    #endif
 
-    printf ("Graph generated: list_dump%d.png\n", image_counter);
+    printf ("Graph generated: tree_dump%d.png\n", image_counter);
 
     image_counter++;
 }
 
-void Create_dump_files(Tree_t* tree, const char* file, const char* func, int line, const char* reason, ...){
+void Create_dump_files (Tree_t* tree, const char* file, const char* func, int line, const char* reason, ...)
+{
     assert (tree);
-    assert(file);
-    assert(func);
-    assert(reason);
+    assert (file);
+    assert (func);
+    assert (reason);
 
     char formatted_reason[300] = {};
-    va_list args = NULL;
+    va_list args = {};
     va_start(args, reason);
     vsnprintf(formatted_reason, sizeof(formatted_reason), reason, args);
+    va_end(args);
 
     int dump_type = DUMP_NORMAL;
     const char* buffer = NULL;
     size_t position = 0;
+    LoadProgress* progress = NULL;
 
-    if (args != NULL)
+    dump_type = va_arg(args, int);
+
+    if (dump_type == DUMP_LOAD)
     {
-        dump_type = va_arg(args, int);
-        if (dump_type == DUMP_PARSING)
-        {
-            buffer = va_arg(args, const char*);
-            position = va_arg(args, size_t);
-        }
+        buffer = va_arg(args, const char*);
+        position = va_arg(args, size_t);
+        progress = va_arg(args, LoadProgress*);
     }
     va_end(args);
 
-     printf("Dump called from %s:%d (%s): %s\n", file, line, func, formatted_reason);
+    #ifdef DEBUG
+        printf("DEBUG: Dump called from %s:%d (%s): %s\n", file, line, func, formatted_reason);
+    #endif
 
     char graph_filename[50] = {};
     char dot_filename[50] = {};
-    char command[100] = {};
     static int dump_counter = 1;
-    int result = 0;
 
-    printf ("Create_dump_files STARTED for %s\n", func);
+    #ifdef DEBUG
+        printf ("DEBUG: Create_dump_files STARTED for %s\n", func);
+    #endif
 
     if (dump_counter == 1)
     {
-        system("mkdir -p imagesDump");
+        system ("mkdir -p imagesDump");
     }
 
-    printf ("=== Make_html_file called #%d ===\n", dump_counter);
+    #ifdef DEBUG
+        printf ("=== Make_html_file called #%d ===\n", dump_counter);
+    #endif
 
+    snprintf (dot_filename, sizeof(dot_filename), "tree_dump.dot");
 
-    snprintf (graph_filename, sizeof(graph_filename), "graph_%d.png", dump_counter);
+    snprintf (graph_filename, sizeof(graph_filename), "tree_dump%d.png", dump_counter);
 
-    snprintf (dot_filename, sizeof(dot_filename), "graph_%d.dot", dump_counter);
+    Create_html_file(tree, dump_counter, graph_filename, func, formatted_reason, dump_type, buffer, position, progress);
 
-    Create_html_file(tree, dump_counter, graph_filename, func, formatted_reason, dump_type, buffer, position);
+    #ifdef DEBUG
+        printf ("DEBUG: Creating DOT file: %s\n", dot_filename);
+    #endif
 
-    printf ("Creating DOT file: %s\n", dot_filename);
+    Create_log_file(tree, dot_filename, dump_type, progress);
 
-    Create_log_file (tree, dot_filename);
-
-    printf ("Converting to PNG...\n");
-
-    snprintf (command, sizeof(command), "dot -Tpng %s -o imagesDump/%s", dot_filename, graph_filename);
-
-    result = system (command);
-
-    if (result != 0)
-    {
-            printf ("WARNING: Graph generation failed for dump #%d\n", dump_counter);
-    }
-
-    remove (dot_filename);
-
-    printf ("Create_dump_files COMPLETED\n");
+    #ifdef DEBUG
+        printf ("Create_dump_files COMPLETED\n");
+    #endif
 
     dump_counter++;
 }
@@ -224,21 +358,29 @@ void Create_html_file(Tree_t* tree, int dump_counter, const char* graph_filename
     int dump_type = DUMP_NORMAL;
     const char* buffer = NULL;
     size_t position = 0;
+    LoadProgress* progress = NULL;
 
-    if (args != NULL)
+    dump_type = va_arg(args, int);
+
+    if (dump_type == DUMP_LOAD)
     {
-        dump_type = va_arg(args, int);
-        if (dump_type == DUMP_PARSING)
-        {
-            buffer = va_arg(args, const char*);
-            position = va_arg(args, size_t);
-        }
+        buffer = va_arg(args, const char*);
+        position = va_arg(args, size_t);
+        progress = va_arg(args, LoadProgress*);
     }
     va_end(args);
 
-    if (dump_type == DUMP_PARSING && buffer != NULL)
+    if (dump_type == DUMP_LOAD && buffer != NULL)
     {
         PrintBuffer(html_file, buffer, position);
+
+        if (progress != NULL)
+        {
+            fprintf(html_file, "<div class='progress-info'>\n");
+            fprintf(html_file, "<h4>Load Progress: %u nodes, current rank: %u</h4>\n",
+                    (unsigned)progress->size, (unsigned)progress->current_rank);
+            fprintf(html_file, "</div>\n");
+        }
     }
 
     if (tree == NULL)
@@ -258,12 +400,18 @@ void Create_html_file(Tree_t* tree, int dump_counter, const char* graph_filename
     fprintf  (html_file, "</div>\n");
 
     fflush (html_file);
-    printf ("HTML dump #%d completed\n", dump_counter);
+
+    #ifdef DEBUG
+        printf ("HTML dump #%d completed\n", dump_counter);
+    #endif
 }
 
 void Create_head_html (FILE** html_file)
 {
-    printf ("Creating HTML file...\n");
+    #ifdef DEBUG
+        printf ("DEBUG: Creating HTML file...\n");
+    #endif
+
     *html_file = fopen ("All_dumps.html", "w");
 
     if (html_file == NULL)
@@ -306,7 +454,10 @@ void Create_head_html (FILE** html_file)
     fprintf (*html_file, "</head>\n");
     fprintf (*html_file, "<body>\n");
     fprintf (*html_file, "<h1 style='color: red;'>ALL LIST DUMPS</h1>\n");
-    printf ("HTML file created successfully\n");
+
+    #ifdef DEBUG
+        printf ("HTML file created successfully\n");
+    #endif
 }
 
 void EscapeHtml(const char* input, char* output, size_t output_size)
@@ -344,21 +495,28 @@ void EscapeHtml(const char* input, char* output, size_t output_size)
     *dest = '\0';
 }
 
-void PrintBuffer (FILE* html_file, const char* buffer, size_t position)
+void PrintBuffer (FILE* html_file, const char* buffer_start, size_t position)
 {
     fprintf(html_file, "<div class='parsing-section'>\n");
     fprintf(html_file, "<h4>Buffer:</h4>\n");
     fprintf(html_file, "<div class='buffer-display'>\n");
-    fprintf(html_file, "<span class = 'getted-text'>%.*s</span>", (int)position, buffer);
-    fprintf(html_file, "<span class = 'cursor'>|</span>");
-    fprintf(html_file, "<span class = 'notgetted-text'>%s</span>", buffer + position);
+
+    size_t show_len = strlen(buffer_start);
+    if (show_len > 500) show_len = 500;
+
+    fprintf(html_file, "<span class='getted-text'>%.*s</span>",
+            (int)position, buffer_start);
+    fprintf(html_file, "<span class='cursor'>|</span>");
+    fprintf(html_file, "<span class='notgetted-text'>%.*s</span>",
+            (int)(show_len - position), buffer_start + position);
     fprintf(html_file, "</div>\n");
 
     size_t len = strlen(buffer);
     if (len > 0)
     {
         int percent = (int)((position * 100) / len);
-        fprintf(html_file, "<div class='buffer-stats'>Position: %zu/%zu (%d%%)</div>\n", position, len, percent);
+        fprintf(html_file, "<div class='buffer-stats'>Position: %u/%u (%d%%)</div>\n",
+               (unsigned)position, (unsigned)len, percent);
     }
 
     fprintf(html_file, "</div>\n");

@@ -7,7 +7,7 @@
 #include <time.h>
 
 #define QUICK_DUMP(tree, reason, ...) Create_dump_files(tree, __FILE__, __func__, __LINE__, reason, ##__VA_ARGS__)
-#define PARSING_DUMP(tree, buf, pos, reason) Create_dump_files(tree, __FILE__, __func__, __LINE__, reason, DUMP_PARSING, buf, pos)
+#define LOADING_BASE_DUMP(tree, buf, pos, reason, progress) Create_dump_files(tree, __FILE__, __func__, __LINE__, reason, DUMP_LOAD, buf, pos, progress)
 
 extern const int DUMMY_VALUE;
 const int MAX_STR_SIZE = 100;
@@ -28,6 +28,21 @@ typedef struct Tree_t
     Node_t* root;
     size_t size;
 } Tree_t;
+
+typedef struct
+{
+    Node_t* node;
+    size_t rank;
+} LoadNodeInfo;
+
+typedef struct
+{
+    LoadNodeInfo* nodes;
+    size_t capacity;
+    size_t size;
+    size_t current_rank;
+} LoadProgress;
+
 
 enum
 {
@@ -66,10 +81,13 @@ int DescribeObject(Node_t* current_node, const char* word);
 
 TreeErr_t SaveTreeToFile(Node_t* node, FILE* file);
 TreeErr_t SaveDatabase(Tree_t* tree, const char* filename);
-Node_t* LoadTreeFromFile (Tree_t* tree, const char** buffer);
+Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, LoadProgress* progress, const char* buffer_start);
 const char* ReadQuotedString (const char* current, char* output, int max_len);
-const char* SkipSpaces(const char* str);
+const char* SkipSpaces (const char* str, int* pos_in_buffer);
 TreeErr_t LoadDatabase(Tree_t* tree, const char* filename);
 
+void InitLoadProgress(LoadProgress* progress);
+void AddNodeToLoadProgress(LoadProgress* progress, Node_t* node);
+void FreeLoadProgress(LoadProgress* progress);
 
 #endif
