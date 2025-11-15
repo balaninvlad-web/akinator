@@ -1,39 +1,40 @@
 #include "tree_functions.h"
 #include "create_dump_files.h"
 
-TreeErr_t SaveTreeToFile(Node_t* node, FILE* file)
+static void SaveTreeToFile (Node_t* node, FILE* file, int depth)
 {
-    // TODO: assert
-
-    if (!node)
+    if (node == NULL)
     {
-        fprintf(file, "nil");
-        return NOERORR;
+        for (int i = 0; i < depth; i++)
+            fprintf (file, "    ");
+
+        fprintf (file, "nil\n");
+        return;
     }
 
-    fprintf(file, "(\"");
+    for (int i = 0; i < depth; i++)
+        fprintf (file, "    ");
 
-    fwrite(node->data, 1, strlen(node->data), file);
+    fprintf (file, "( \"%s\"\n", node->data);
 
-    fprintf(file, "\" ");
+    SaveTreeToFile (node->left, file, depth + 1);
+    SaveTreeToFile (node->right, file, depth + 1);
 
-    SaveTreeToFile(node->left, file);
-    fprintf(file, " ");
-    SaveTreeToFile(node->right, file);
-    fprintf(file, ")");
+    for (int i = 0; i < depth; i++)
+        fprintf (file, "    ");
 
-    return NOERORR;
+    fprintf (file, ")\n");
 }
 
-TreeErr_t SaveDatabase(Tree_t* tree, const char* filename)
+TreeErr_t SaveDatabase (Tree_t* tree, const char* filename)
 {
     if (!tree) return ERORRNODENULL;
 
-    FILE* file = fopen(filename, "w");
+    FILE* file = fopen (filename, "w");
     if (!file) return ERORRFILEOPEN;
 
-    SaveTreeToFile(tree->root, file);
-    fclose(file);
+    SaveTreeToFile (tree->root, file, 0);
+    fclose (file);
 
     printf("Database saved to %s\n", filename);
     return NOERORR;
@@ -41,8 +42,8 @@ TreeErr_t SaveDatabase(Tree_t* tree, const char* filename)
 
 const char* SkipSpaces (const char* str, int* pos_in_buffer)
 {
-    assert(str);
-    assert(pos_in_buffer);
+    assert (str);
+    assert (pos_in_buffer);
 
     while (*str && isspace((unsigned char)*str))
     {
@@ -53,33 +54,14 @@ const char* SkipSpaces (const char* str, int* pos_in_buffer)
     return str;
 }
 
-const char* ReadQuotedString (const char* current, char* output, int max_len)
-{
-    // TODO: assert
-
-    if (*current != '"') return current;
-
-    current++;
-    int i = 0;
-
-    while (*current && *current != '"' && i < max_len - 1)
-    {
-        output[i++] = *current++;
-    }
-    output[i] = '\0';
-
-    if (*current == '"')
-        current++;
-
-    return current;
-}
-
-// TODO: third argument
-Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, LoadProgress* progress, const char* buffer_start)
+Node_t* LoadTreeFromFile (Tree_t* tree, const char** buffer, int* pos_in_buffer, LoadProgress* progress, const char* buffer_start)
 {
     assert (tree);
     assert (buffer);
     assert (pos_in_buffer);
+    assert (buffer_start);
+    assert (*pos_in_buffer >= 0);
+    assert (*buffer >= buffer_start);
 
     progress->current_rank++;
 
@@ -101,19 +83,19 @@ Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, 
             printf ("DEBUG: Found opening bracket, starting new node\n");
         #endif
 
-        current = SkipSpaces(current + 1, pos_in_buffer + 1);
+        current = SkipSpaces (current + 1, pos_in_buffer + 1);
 
         #ifdef DEBUG
             printf ("DEBUG: After skipping spaces after '(': '%.10s...', pos_in_buffer: %d\n", current, *pos_in_buffer);
         #endif
 
-        Node_t* node = NodeCtor(tree, "");
+        Node_t* node = TreeInsertNode (tree, "");
 
-        if (node && progress) AddNodeToLoadProgress(progress, node);
+        if (node && progress) AddNodeToLoadProgress (progress, node);
 
         if (!node)
         {
-            printf ("DEBUG: ERROR: NodeCtor failed!\n");
+            printf ("DEBUG: ERROR: TreeInsertNode failed!\n");
             return NULL;
         }
 
@@ -122,53 +104,7 @@ Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, 
             LOADING_BASE_DUMP (tree, buffer_start, *pos_in_buffer, "Node created", progress);
         #endif
 
-        // TODO: GetNodeInfo
-
-        if (*current == '"')
-        {
-            #ifdef DEBUG
-                printf ("DEBUG: Found opening quote, reading data\n");
-            #endif
-
-            current++;
-
-            char data[MAX_STR_SIZE] = {};
-            int i = 0;
-
-            while (*current && *current != '"' && i < MAX_STR_SIZE - 1)
-            {
-                data[i++] = *current++;
-                (*pos_in_buffer)++;
-            }
-            data[i] = '\0';
-
-            #ifdef DEBUG
-                printf ("\nDEBUG: Data read: '%s'\n", data);
-            #endif
-
-            free(node->data);
-            node->data = strdup(data);
-
-            #ifdef DEBUG
-                printf ("DEBUG: Node data set to: '%s'\n", node->data);
-                LOADING_BASE_DUMP (tree, buffer_start, *pos_in_buffer, "Node data filled", progress);
-            #endif
-
-            if (*current == '"')
-            {
-                current++;
-                (*pos_in_buffer)++;
-                #ifdef DEBUG
-                    printf ("DEBUG: Closing quote found, moving forward\n");
-                #endif
-            }
-        }
-        else
-        {
-            #ifdef DEBUG
-                printf ("DEBUG: WARNING: No opening quote found at: '%.10s...', pos_in_buffer: %d\n", current, *pos_in_buffer);
-            #endif
-        }
+        current = GetNodeInfo (tree, node, current, pos_in_buffer, buffer_start, progress);
 
         current = SkipSpaces (current, pos_in_buffer);
 
@@ -221,7 +157,7 @@ Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, 
         else if (strncmp (current, "nil", 3) == 0)
         {
             #ifdef DEBUG
-            printf ("DEBUG: Right subtree is nil\n");
+                printf ("DEBUG: Right subtree is nil\n");
             #endif
 
             current += 3;
@@ -275,7 +211,7 @@ Node_t* LoadTreeFromFile(Tree_t* tree, const char** buffer, int* pos_in_buffer, 
     else
     {
         #ifdef DEBUG
-        printf ("DEBUG: No opening bracket found, returning NULL\n");
+            printf ("DEBUG: No opening bracket found, returning NULL\n");
         #endif
     }
 
@@ -292,7 +228,7 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
     #endif
 
     LoadProgress progress = {};
-    InitLoadProgress (&progress);
+    CtorLoadProgress (&progress);
 
     FILE* file = fopen (filename, "r");
 
@@ -303,7 +239,7 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
         #endif
         printf("No saved database found. Starting with empty knowledge.\n");
 
-        FreeLoadProgress (&progress);
+        DtorLoadProgress (&progress);
 
         return NOERORR;
     }
@@ -312,10 +248,7 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
         printf("DEBUG: File opened successfully\n");
     #endif
 
-    // TODO: getFileSize
-    fseek (file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek (file, 0, SEEK_SET);
+    long file_size = getFileSize (file);
 
     #ifdef DEBUG
         printf("DEBUG: File size: %ld bytes\n", file_size);
@@ -331,7 +264,7 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
 
         fclose(file);
 
-        FreeLoadProgress (&progress);
+        DtorLoadProgress (&progress);
 
         return ERORRBUFFER;
     }
@@ -344,14 +277,14 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
     int position = 0;
     const char* buffer_start = buffer;
 
-    tree->root = LoadTreeFromFile(tree, &buffer_ptr, &position, &progress, buffer_start);
+    tree->root = LoadTreeFromFile (tree, &buffer_ptr, &position, &progress, buffer_start);
 
     #ifdef DEBUG
         printf("DEBUG: Tree parsing completed, root: %p\n", (void*)tree->root);
     #endif
 
     free (buffer);
-    FreeLoadProgress (&progress);
+    DtorLoadProgress (&progress);
 
     #ifdef DEBUG
         printf("DEBUG: Buffer freed\n");
@@ -362,32 +295,99 @@ TreeErr_t LoadDatabase (Tree_t* tree, const char* filename)
     return tree->root ? NOERORR : ERORRTREENULL;
 }
 
-void InitLoadProgress(LoadProgress* progress)
+void CtorLoadProgress (LoadProgress* progress)
 {
     progress->capacity = 10;
     progress->size = 0;
     progress->current_rank = 0;
-    progress->nodes = (LoadNodeInfo*)calloc(progress->capacity, sizeof(LoadNodeInfo));
+    progress->nodes = (LoadNodeInfo*) calloc (progress->capacity, sizeof(LoadNodeInfo));
 }
 
-void AddNodeToLoadProgress(LoadProgress* progress, Node_t* node)
+void AddNodeToLoadProgress (LoadProgress* progress, Node_t* node)
 {
     if (progress->size >= progress->capacity)
     {
         progress->capacity *= 2;
-        progress->nodes = (LoadNodeInfo*)realloc(progress->nodes,
-                      progress->capacity * sizeof(LoadNodeInfo));
+        progress->nodes = (LoadNodeInfo*) realloc (progress->nodes,
+                                                  progress->capacity * sizeof(LoadNodeInfo));
     }
     progress->nodes[progress->size].node = node;
     progress->nodes[progress->size].rank = progress->current_rank;
     progress->size++;
 }
 
-void FreeLoadProgress(LoadProgress* progress)
+void DtorLoadProgress (LoadProgress* progress)
 {
-    free(progress->nodes);
+    free (progress->nodes);
     progress->nodes = NULL;
     progress->capacity = 0;
     progress->size = 0;
     progress->current_rank = 0;
+}
+
+long getFileSize (FILE* file)
+{
+    fseek (file, 0, SEEK_END);
+    long file_size = ftell (file);
+    fseek (file, 0, SEEK_SET);
+
+    return file_size;
+}
+
+const char* GetNodeInfo (Tree_t* tree, Node_t* node, const char* current, int* pos_in_buffer, const char* buffer_start, LoadProgress* progress)
+{
+    assert (tree);
+    assert (node);
+    assert (current);
+    assert (pos_in_buffer);
+    assert (*pos_in_buffer >= 0);
+    assert (buffer_start);
+
+    if (*current == '"')
+    {
+        #ifdef DEBUG
+            printf ("DEBUG: Found opening quote, reading data\n");
+        #endif
+
+        current++;
+
+        char data[MAX_STR_SIZE] = {};
+        int i = 0;
+
+        while (*current && *current != '"' && i < MAX_STR_SIZE - 1)
+        {
+            data[i++] = *current++;
+            (*pos_in_buffer)++;
+        }
+        data[i] = '\0';
+
+        #ifdef DEBUG
+            printf ("\nDEBUG: Data read: '%s'\n", data);
+        #endif
+
+        free (node->data);
+        node->data = strdup (data);
+
+        #ifdef DEBUG
+            printf ("DEBUG: Node data set to: '%s'\n", node->data);
+            LOADING_BASE_DUMP (tree, buffer_start, *pos_in_buffer, "Node data filled", progress);
+        #endif
+
+        if (*current == '"')
+        {
+            current++;
+            (*pos_in_buffer)++;
+            #ifdef DEBUG
+                printf ("DEBUG: Closing quote found, moving forward\n");
+            #endif
+        }
+    }
+    else
+    {
+        #ifdef DEBUG
+            printf ("DEBUG: WARNING: No opening quote found at: '%.10s...', pos_in_buffer: %d\n", current, *pos_in_buffer);
+        #endif
+    }
+
+    return current;
 }

@@ -14,23 +14,6 @@ TreeErr_t TreeCtor (Tree_t** tree)
         return ERORRTREEALLOC;
     }
 
-    (*tree)->dummy = (Node_t*)calloc(1, sizeof(Node_t));
-
-    if (!(*tree)->dummy)
-    {
-        fprintf (stderr, "ERROR: in TreeCtor - memory allocation for dummy node\n");
-
-        free(*tree);
-
-        *tree = NULL;
-
-        return ERORRDUMMYALLOC;
-    }
-
-    (*tree)->dummy->left = (*tree)->dummy;
-
-    (*tree)->dummy->right = (*tree)->dummy;
-
     (*tree)->root = NULL;
 
     (*tree)->size = 0;
@@ -56,6 +39,7 @@ TreeErr_t TreeInsertLeft (Tree_t* tree, Node_t* parent, const char* answer)
 
     parent->left = left_node;
     tree->size++;
+    TreeVerify (tree);
     return NOERORR;
 }
 
@@ -73,7 +57,29 @@ TreeErr_t TreeInsertRight (Tree_t* tree, Node_t* parent, const char* answer)
 
     parent->right = right_node;
     tree->size++;
+    TreeVerify (tree);
     return NOERORR;
+}
+
+Node_t* TreeInsertNode (Tree_t* tree, const char* data)
+{
+    if (!tree) return NULL;
+
+    Node_t* node = (Node_t*) calloc (1, sizeof(Node_t));
+
+    if (!node)
+    {
+        fprintf (stderr, "ERORR: invalid ctor of right node!\n");
+        return NULL;
+    }
+
+    node->data = strdup (data ? data : "");
+
+    tree->size++;
+    node->left = NULL;
+    node->right = NULL;
+
+    return node;
 }
 
 TreeErr_t TreeInsertRoot (Tree_t* tree, const char* question)
@@ -102,7 +108,6 @@ Node_t* NodeCtor (Tree_t* tree, const char* value)
     if (!new_node)
     {
         fprintf (stderr, "ERROR: in NodeCtor - memory allocation\n");
-
         return NULL;
     }
 
@@ -137,8 +142,6 @@ TreeErr_t TreeDtor (Tree_t* tree)
     if (!tree) return ERORRNODENULL;
 
     DeleteSubtree (tree, &tree->root);
-    free (tree->dummy->data);
-    free (tree->dummy);
     free (tree);
 
     return NOERORR;
@@ -148,7 +151,7 @@ TreeErr_t PrintNode (const Node_t* node)
 {
     if (!node)
     {
-        fprintf(stderr, "ERROR: in NodeCtor - memory allocation\n");
+        fprintf(stderr, "ERROR: Trying to print NULL node\n");
 
         return ERORRNODENULL;
     }
@@ -176,12 +179,6 @@ TreeErr_t TreeVerify (Tree_t* tree)
         return ERORRTREEALLOC;
     }
 
-    if (tree->dummy->left != tree->dummy || tree->dummy->right != tree->dummy)
-    {
-        fprintf(stderr, "ERORR: invalid dummy\n");
-        return ERORRDUMMYALLOC;
-    }
-
     if (tree->size > 0 && tree->root == NULL)
     {
         fprintf(stderr, "ERORR: invalid ROOT\n");
@@ -201,7 +198,7 @@ TreeErr_t TreeVerify (Tree_t* tree)
 
 TreeErr_t TreeVerifyNode (Tree_t* tree, Node_t* node, Node_t** visited, size_t* counter)
 {
-    if (node == NULL || node == tree->dummy) return NOERORR;
+    if (node == NULL) return NOERORR;
 
     if ((uintptr_t)node < 0x1000)
     {
@@ -260,5 +257,6 @@ TreeErr_t DeleteSubtree (Tree_t* tree, Node_t** node)
 
     return NOERORR;
 }
+
 
 

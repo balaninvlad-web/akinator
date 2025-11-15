@@ -8,50 +8,62 @@ TreeErr_t GuessObject (Tree_t* tree, Node_t* current_node)
 
     //TreeVerify (tree);
 
-    if (current_node->left == NULL && current_node->right == NULL)
+    Node_t* current = current_node;
+
+    while (current->left != NULL && current->right != NULL)
     {
-        printf("Is your answer: %s?\n", current_node->data);
+        UserAnswer answer = UNKNOWN;
 
-        char answer[10] = {};
-
-        fgets (answer, sizeof(answer), stdin);
-
-        if (answer[0] == 'y' || answer[0] == 'Y')
+        while (answer == UNKNOWN)
         {
-            printf("Hey, nigga i know, that, shit!\n");
+            printf("%s (y/n): ", current->data);
+
+            answer = AkinatorGetAnswer();
+
+            if (answer == NO)
+                current = current->left;
+
+            else if (answer == YES)
+                current = current->right;
+
+            else
+                printf("Please answer with 'y' or 'n'\n");
+        }
+    }
+
+    printf("Is your answer: %s?\n", current->data);
+
+    UserAnswer final_answer = UNKNOWN;
+
+    while (final_answer == UNKNOWN)
+    {
+        printf("Did I guess right?");
+
+        final_answer = AkinatorGetAnswer();
+
+        if (final_answer == YES)
+        {
+            printf("Great! I guessed it!\n");
+            return NOERORR;
+        }
+        else if (final_answer == NO)
+        {
+            printf("Oh, I should learn that!\n");
+            return AddNewObject (tree, current);
         }
         else
         {
-            printf("Oh, damn, i shoul to known that fucking shit!\n");
-
-            AddNewObject(tree, current_node);
+            printf("Please answer with 'y' or 'n'\n");
         }
-        return NOERORR;
     }
 
-    printf("%s (y/n): ", current_node->data);
-
-    char answer[10] = {};
-    fgets(answer, sizeof(answer), stdin);
-
-    if (answer[0] == 'y' || answer[0] == 'Y')
-    {
-        return GuessObject(tree, current_node->right);
-    }
-    else if (answer[0] == 'n' || answer[0] == 'N')
-    {
-        return GuessObject(tree, current_node->left);
-    }
-    else
-    {
-        printf("Please answer 'yes' or 'no'\n");
-        return GuessObject(tree, current_node);
-    }
+    return NOERORR;
 }
 
 void PrintMenu()
 {
     printf("\n=== AKINATOR MENU ===\n");
+    //speak("poshaluista viberi deistvie brooo");
     printf("[G]uess object\n");
     printf("[D]efine object\n");
     printf("[C]ompare two objects\n");
@@ -62,39 +74,33 @@ void PrintMenu()
 
 void AkinatorMenu (Tree_t* tree)
 {
-    char choice = 0;
-
     LoadDatabase(tree, "okinator_db.txt");
 
-    while (choice != 'e' && choice != 'E')
+    AkinatorMode mode = UNKNOWN_TYPE;
+
+    do
     {
         PrintMenu();
 
-        scanf("%c", &choice);
-        // TODO: func
-        //choice = AkinatorGetMode();
-        getchar(); // нет \n теперь
+        mode = AkinatorGetMode();
 
         QUICK_DUMP(tree, "check tree before action");
 
-        switch (choice)
+        switch (mode)
         {
-            case 'g':
-            case 'G': // AKINATOR_GUESS
+            case GUESSTYPE:
             {
                 printf("\n--- Guess object---\n");
                 GuessObject (tree, tree->root);
                 break;
             }
-            case 'c':
-            case 'C': // AKINATOR_COMPARE
+            case COMPARETYPE:
             {
                 printf("\n--- Compare two objects ---\n");
                 // CompareObjects(tree->root);
                 break;
             }
-            case 's':
-            case 'S':
+            case SAVEBASETYPE:
             {
                 printf("\n--- Knowledge base ---\n");
                 PrintNode(tree->root);
@@ -102,11 +108,8 @@ void AkinatorMenu (Tree_t* tree)
                 Create_log_file(tree, "akinator_dump.dot", DUMP_NORMAL, NULL);
                 break;
             }
-            case 'd':
-            case 'D':
+            case DEFINETYPE:
             {
-                // TODO: func
-
                 printf("\n--- Define object ---\n");
 
                 printf("Enter object: ");
@@ -126,26 +129,27 @@ void AkinatorMenu (Tree_t* tree)
                 printf("\n");
                 break;
             }
-            case 'e':
-            case 'E':
+            case EXITTYPE:
             {
                 printf("Saving database...\n");
                 SaveDatabase(tree, "okinator_db.txt");
                 printf("Goodbye, bitch!\n");
                 return;
             }
+            case UNKNOWN_TYPE:
             default:
                 printf("Hey, bitch, your command invalid!!\n");
 
         }
-    }
+    } while (mode != EXITTYPE);
 }
 
 TreeErr_t AddNewObject(Tree_t* tree, Node_t* current_node)
 {
     if (!tree || !current_node) return ERORRNODENULL;
 
-    printf("What you think about?\n");
+    printf ("What you think about?\n");
+    //speak ("What you think about?\n");
 
     char new_data[MAX_STR_SIZE] = {};
 
@@ -153,18 +157,14 @@ TreeErr_t AddNewObject(Tree_t* tree, Node_t* current_node)
 
     new_data[strlen(new_data) - 1] = '\0';
 
-    printf("A %s differs from a %s in that it is: ", new_data, current_node->data);
+    printf ("A %s differs from a %s in that it is: ", new_data, current_node->data);
+    //speak ("A %s differs from a %s in that it is: ", new_data, current_node->data);
 
     char new_question[MAX_STR_SIZE] = {};
 
     fgets(new_question, sizeof(new_question), stdin);
 
     new_question[strlen(new_data) - 1] = '\0';
-
-    printf("what will be the answer for %s? (y/n): ", new_data);
-
-    char answer[10] = {};
-    fgets(answer, sizeof(answer), stdin);
 
     char* old_data = strdup(current_node->data);
 
@@ -183,30 +183,24 @@ TreeErr_t AddNewObject(Tree_t* tree, Node_t* current_node)
         return ERORRNODENULL;
     }
 
-    if (answer[0] == 'y' || answer[0] == 'Y') // TODO: AkinatorGetAnswer
-    {
-        current_node->right = yes_node;
-        current_node->left = no_node;
-    }
-    else
-    {
-        current_node->left = yes_node;
-        current_node->right = no_node;
-    }
+    current_node->right = yes_node;
+    current_node->left = no_node;
 
     tree->size += 2;
+    TreeVerify (tree);
     printf("\nOk, my nigga, I'll remember that shit\n");
     return NOERORR;
 }
 
-int DescribeObject(Node_t* current_node, const char* word)
+int DescribeObject (Node_t* current_node, const char* word)
 {
+    assert (word);
+
     if (current_node == NULL)
     {
-    #ifdef DEBUG
-        printf("DEBUG: FOUND! %s\n", current_node->data);
-        printf("DEBUG: Reached NULL node\n");
-    #endif
+        #ifdef DEBUG
+            printf("DEBUG: Reached NULL node\n");
+        #endif
         return 0;
     }
 
@@ -214,7 +208,7 @@ int DescribeObject(Node_t* current_node, const char* word)
         printf("DEBUG: Checking node: '%s' vs target: '%s'\n", current_node->data, word);
     #endif
 
-    if (strcmp(current_node->data, word) == 0)
+    if (strcmp (current_node->data, word) == 0)
     {
         printf ("%s ", current_node->data);
         return 1;
@@ -241,4 +235,95 @@ int DescribeObject(Node_t* current_node, const char* word)
     }
 
     return 0;
+}
+
+AkinatorMode AkinatorGetMode(void)
+{
+    char choice = 0;
+    char buffer[MAX_STR_SIZE] = {};
+
+    while (1)
+    {
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL)
+        {
+            printf("Input error\n");
+            return EXITTYPE;
+        }
+
+        char* input = buffer;
+        while (*input == ' ' || *input == '\t') input++;
+
+        choice = *input;
+
+        switch (choice)
+        {
+            case 'g':
+            case 'G':
+                printf("Starting Guess mode...\n");
+                return GUESSTYPE;
+            case 'c':
+            case 'C':
+                printf("Starting Compare mode...\n");
+                return COMPARETYPE;
+            case 'd':
+            case 'D':
+                printf("Starting Define mode...\n");
+                return DEFINETYPE;
+            case 's':
+            case 'S':
+                printf("Saving database...\n");
+                return SAVEBASETYPE;
+            case 'e':
+            case 'E':
+                printf("Goodbye!\n");
+                return EXITTYPE;
+            case '\n':
+                printf("Please enter a command\n");
+                break;
+            default:
+                printf("Invalid command '%c'. Please use: G, C, D, S, E\n", choice);
+                break;
+        }
+    }
+}
+
+UserAnswer AkinatorGetAnswer(void)
+{
+    char buffer[100] = {};
+
+    while (1)
+    {
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL)
+        {
+            printf("Input error, please try again: ");
+            continue;
+        }
+
+        if (strchr(buffer, '\n') == NULL)
+        {
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+        }
+
+        char* input = buffer;
+        while (*input == ' ' || *input == '\t') input++;
+
+        char choice = *input;
+
+        switch (choice)
+        {
+            case 'y':
+            case 'Y':
+                return YES;
+            case 'n':
+            case 'N':
+                return NO;
+            case '\n':
+                printf("Please enter 'y' for yes or 'n' for no: ");
+                break;
+            default:
+                printf("Invalid answer '%c'. Please enter 'y' for yes or 'n' for no: ", choice);
+                break;
+        }
+    }
 }

@@ -6,6 +6,7 @@ void Create_log_file (Tree_t* tree, const char* filename, int dump_type, LoadPro
 {
     assert (tree);
     assert (filename);
+    //assert (progress);
 
     FILE* dot_file = fopen (filename, "w");
 
@@ -19,7 +20,7 @@ void Create_log_file (Tree_t* tree, const char* filename, int dump_type, LoadPro
 
     if (dump_type == DUMP_LOAD && progress && progress->size > 0)
     {
-        Create_load_graph(tree, dot_file, progress);
+        Create_load_graph (tree, dot_file, progress);
     }
     else
     {
@@ -84,7 +85,7 @@ void Create_load_graph (Tree_t* tree, FILE* dot_file, LoadProgress* progress)
 
         if (node == NULL) continue;
 
-        Create_load_node(tree, dot_file, node, rank);
+        Create_load_node (tree, dot_file, node, rank);
     }
 
     size_t max_rank = 0;
@@ -141,15 +142,18 @@ void Create_load_node (Tree_t* tree, FILE* dot_file, Node_t* node, size_t rank)
     }
 
     char escaped_data[MAX_STR_SIZE * 2] = {0};
-    EscapeHtml(node->data, escaped_data, sizeof(escaped_data));
+    EscapeHtml (node->data, escaped_data, sizeof(escaped_data));
 
     fprintf(dot_file,
         "    node%p [label=<<TABLE BORDER='1' CELLBORDER='1' CELLSPACING='0'>"
-        "<TR><TD COLSPAN='2'>%u</TD></TR>"
-        "<TR><TD COLSPAN='2'>%s</TD></TR>"
-        "<TR><TD>NO</TD><TD>YES</TD></TR></TABLE>>, "
+        "<TR><TD COLSPAN='2'>add: %p</TD></TR>"
+        "<TR><TD COLSPAN='2'>rank: %u</TD></TR>"
+        "<TR><TD COLSPAN='2'>data: %s</TD></TR>"
+        "<TR><TD>NO</TD><TD>YES</TD></TR>"
+        "<TR><TD>%p</TD><TD>%p</TD></TR></TABLE>>, "
         "fillcolor=\"%s\", color=\"%s\", fontcolor=\"%s\"];\n",
-        (void*)node, (unsigned)rank, escaped_data, fillcolor, color, color);
+        (void*)node, (void*)node, (unsigned)rank, escaped_data,
+        (void*)node->left, (void*)node->right, fillcolor, color, color);
 
     #ifdef DEBUG
         printf ("DEBUG: LOADBLOCK Writing TO file.....\n");
@@ -162,7 +166,7 @@ void Create_load_arrows(Tree_t* tree, FILE* dot_file, Node_t* node)
     assert(dot_file);
     assert(node);
 
-    if (node->left && node->left != tree->dummy)
+    if (node->left)
     {
         fprintf(dot_file,
             "    node%p -> node%p [color=\"#ffadb1\", penwidth=2, label=\"NO\", "
@@ -170,7 +174,7 @@ void Create_load_arrows(Tree_t* tree, FILE* dot_file, Node_t* node)
             (void*)node, (void*)node->left);
     }
 
-    if (node->right && node->right != tree->dummy)
+    if (node->right)
     {
         fprintf(dot_file,
             "    node%p -> node%p [color=\"#adebff\", penwidth=2, label=\"YES\", "
@@ -184,7 +188,7 @@ void Create_graph_node (Tree_t* tree, FILE* dot_file, Node_t* node)
     assert (tree);
     assert (dot_file);
 
-    if (node == tree->dummy || node == NULL) return;
+    if (node == NULL) return;
 
     const char* fillcolor = "";
     const char* color = "black";
@@ -209,10 +213,12 @@ void Create_graph_node (Tree_t* tree, FILE* dot_file, Node_t* node)
     EscapeHtml(node->data, escaped_data, sizeof(escaped_data));
 
     fprintf (dot_file, "    node%p [label=<<TABLE BORDER='1' CELLBORDER='1' CELLSPACING='0'>"
-            "<TR><TD COLSPAN='2'>%s</TD></TR>"
-            "<TR><TD>NO</TD><TD>YES</TD></TR></TABLE>>, "
+            "<TR><TD COLSPAN='2'>add: %p</TD></TR>"
+            "<TR><TD COLSPAN='2'>data: %s</TD></TR>"
+            "<TR><TD>NO</TD><TD>YES</TD></TR>"
+            "<TR><TD>%p</TD><TD>%p</TD></TR></TABLE>>, "
             "fillcolor=\"%s\", color=\"%s\", fontcolor=\"%s\"];\n",
-            (void*)node, escaped_data, fillcolor, color, color);
+            (void*)node, (void*)node, escaped_data, (void*)node->left, (void*)node->right, fillcolor, color, color);
 
     #ifdef DEBUG
         printf ("DEBUG: BLOCKS Writing TO file.....\n");
@@ -229,7 +235,7 @@ void Make_arrow (Tree_t* tree, FILE* dot_file, Node_t* node)
 
     assert (dot_file);
 
-    if (node == tree->dummy || node == NULL) return;
+    if (node == NULL) return;
 
     #ifdef DEBUG
         printf("DEBUG: Make_arrow: creating connections...\n");
@@ -258,15 +264,15 @@ void Create_picture (void)
 
     char command[MAX_COMMAND_LENGTH] = "";
 
-    snprintf (command, sizeof(command), "dot -Tpng tree_dump.dot -o imagesDump/tree_dump%d.png", image_counter);
+    snprintf (command, sizeof(command), "dot -Tsvg tree_dump.dot -o imagesDump/tree_dump%d.svg", image_counter);
 
     system (command);
 
     #ifdef DEBUG
-        printf ("dot -Tpng tree_dump.dot -o imagesDump/tree_dump%d.png", image_counter);
+        printf ("dot -Tsvg tree_dump.dot -o imagesDump/tree_dump%d.svg", image_counter);
     #endif
 
-    printf ("Graph generated: tree_dump%d.png\n", image_counter);
+    printf ("Graph generated: tree_dump%d.svg\n", image_counter);
 
     image_counter++;
 }
@@ -280,22 +286,22 @@ void Create_dump_files (Tree_t* tree, const char* file, const char* func, int li
 
     char formatted_reason[300] = {};
     va_list args = {};
-    va_start(args, reason);
-    vsnprintf(formatted_reason, sizeof(formatted_reason), reason, args);
-    va_end(args);
+    va_start (args, reason);
+    vsnprintf (formatted_reason, sizeof(formatted_reason), reason, args);
+    va_end (args);
 
     int dump_type = DUMP_NORMAL;
     const char* buffer = NULL;
     size_t position = 0;
     LoadProgress* progress = NULL;
 
-    dump_type = va_arg(args, int);
+    dump_type = va_arg (args, int);
 
     if (dump_type == DUMP_LOAD)
     {
-        buffer = va_arg(args, const char*);
-        position = va_arg(args, size_t);
-        progress = va_arg(args, LoadProgress*);
+        buffer = va_arg (args, const char*);
+        position = va_arg (args, size_t);
+        progress = va_arg (args, LoadProgress*);
     }
     va_end(args);
 
@@ -322,9 +328,9 @@ void Create_dump_files (Tree_t* tree, const char* file, const char* func, int li
 
     snprintf (dot_filename, sizeof(dot_filename), "tree_dump.dot");
 
-    snprintf (graph_filename, sizeof(graph_filename), "tree_dump%d.png", dump_counter);
+    snprintf (graph_filename, sizeof(graph_filename), "tree_dump%d.svg", dump_counter);
 
-    Create_html_file(tree, dump_counter, graph_filename, func, formatted_reason, dump_type, buffer, position, progress);
+    Create_html_file (tree, dump_counter, graph_filename, func, formatted_reason, dump_type, buffer, position, progress);
 
     #ifdef DEBUG
         printf ("DEBUG: Creating DOT file: %s\n", dot_filename);
@@ -339,7 +345,7 @@ void Create_dump_files (Tree_t* tree, const char* file, const char* func, int li
     dump_counter++;
 }
 
-void Create_html_file(Tree_t* tree, int dump_counter, const char* graph_filename, const char* func, const char* formatted_reason, ...)
+void Create_html_file (Tree_t* tree, int dump_counter, const char* graph_filename, const char* func, const char* formatted_reason, ...)
 {
     static FILE* html_file = NULL;
 
@@ -349,8 +355,8 @@ void Create_html_file(Tree_t* tree, int dump_counter, const char* graph_filename
     }
 
     fprintf (html_file, "<div class='dump'>\n");
-    fprintf (html_file, "<h2>Dump %d Called from: <font color=white>%s</font></h2>", dump_counter, func);
-    fprintf(html_file, "<h2>Dump %d Called because: <font color=white>%s</font></h2>\n", dump_counter, formatted_reason);
+    fprintf (html_file, "       <h2>Dump %d Called from: <font color=white>%s</font></h2>\n", dump_counter, func);
+    fprintf (html_file, "       <h2>Dump %d Called because: <font color=white>%s</font></h2>\n\n", dump_counter, formatted_reason);
 
     va_list args;
     va_start(args, formatted_reason);
@@ -360,43 +366,43 @@ void Create_html_file(Tree_t* tree, int dump_counter, const char* graph_filename
     size_t position = 0;
     LoadProgress* progress = NULL;
 
-    dump_type = va_arg(args, int);
+    dump_type = va_arg (args, int);
 
     if (dump_type == DUMP_LOAD)
     {
-        buffer = va_arg(args, const char*);
-        position = va_arg(args, size_t);
-        progress = va_arg(args, LoadProgress*);
+        buffer = va_arg (args, const char*);
+        position = va_arg (args, size_t);
+        progress = va_arg (args, LoadProgress*);
     }
-    va_end(args);
+    va_end (args);
 
     if (dump_type == DUMP_LOAD && buffer != NULL)
     {
-        PrintBuffer(html_file, buffer, position);
+        PrintBuffer (html_file, buffer, position);
 
         if (progress != NULL)
         {
-            fprintf(html_file, "<div class='progress-info'>\n");
-            fprintf(html_file, "<h4>Load Progress: %u nodes, current rank: %u</h4>\n",
+            fprintf (html_file, "<div class='progress-info'>\n");
+            fprintf (html_file, "   <h4>Load Progress: %u nodes, current rank: %u</h4>\n",
                     (unsigned)progress->size, (unsigned)progress->current_rank);
-            fprintf(html_file, "</div>\n");
+            fprintf (html_file, "</div>\n\n");
         }
     }
 
     if (tree == NULL)
     {
         printf ("ERROR: tree is NULL\n");
-        fprintf (html_file, "<p><b>ERROR: List is NULL</b></p>\n");
-        fprintf (html_file, "</div>\n");
+        fprintf (html_file, "   <p><b>ERROR: List is NULL</b></p>\n");
+        fprintf (html_file, "</div>\n\n");
         dump_counter++;
         return;
     }
 
-    fprintf (html_file, "<h3>Graph Visualization</h3>\n");
+    fprintf (html_file, "       <h3>Graph Visualization</h3>\n");
 
-    fprintf (html_file, "<img src='imagesDump/%s' alt='Graph %d' width='1500'>\n", graph_filename, dump_counter);
+    fprintf (html_file, "       <img src='imagesDump/%s' alt='Graph %d' width='1500'>\n", graph_filename, dump_counter);
 
-    fprintf (html_file, "</pre>\n");
+    fprintf (html_file, "   </pre>\n");
     fprintf  (html_file, "</div>\n");
 
     fflush (html_file);
@@ -427,28 +433,31 @@ void Create_head_html (FILE** html_file)
     fprintf (*html_file, "<title>TREE Dumps</title>\n");
     fprintf (*html_file, "<style>\n");
 
-    fprintf (*html_file, "body { background-color: #001f29; color: #ffffff; }\n");
+    fprintf (*html_file, "  body { background-color: #001f29; color: #ffffff; font-size: 20px; }\n");
 
-    fprintf (*html_file, "table { border-collapse: collapse; margin: 10px; }\n");
-    fprintf (*html_file, "th, td { border: 1px solid #0077a3; padding: 5px; }\n");
-    fprintf (*html_file, "th { background-color: #00415a; }\n");
+    fprintf (*html_file, "  table { border-collapse: collapse; margin: 10px; }\n");
+    fprintf (*html_file, "  th, td { border: 1px solid #0077a3; padding: 5px; }\n");
+    fprintf (*html_file, "  th { background-color: #00415a; }\n");
 
-    fprintf (*html_file, "img { max-width: 100%%; height: auto; margin: 10px; }\n");
+    fprintf (*html_file, "      img { max-width: 100%%; height: auto; margin: 10px; }\n");
 
-    fprintf (*html_file, ".dump { border: 2px solid #0099cc; padding: 15px; margin: 10px; }\n");
+    fprintf (*html_file, "  .dump { border: 2px solid #0099cc; padding: 15px; margin: 10px; }\n\n");
 
-    fprintf (*html_file, "h1 { color: #00ccff; }\n");
-    fprintf (*html_file, "h2 { color: #00b8e6; }\n");
-    fprintf (*html_file, "h3 { color: #66d9ff; }\n");
+    fprintf (*html_file, "      h1 { color: #00ccff; font-size: 36px; }\n");
+    fprintf (*html_file, "      h2 { color: #00b8e6; font-size: 28px; }\n");
+    fprintf (*html_file, "      h3 { color: #66d9ff; font-size: 30px; }\n");
+    fprintf (*html_file, "      h4 { color: #66d9ff; font-size: 30px; }\n\n");
 
-    fprintf (*html_file, "pre { color: #b3ecff; background-color: #001a21; padding: 10px; }\n");
+    fprintf (*html_file, "  pre { color: #b3ecff; background-color: #001a21; padding: 10px; }\n");
 
-    fprintf(*html_file, ".parsing-section { margin: 20px 0; padding: 15px; background: #002b36; border: 1px solid #005a73; }\n");
-    fprintf(*html_file, ".buffer-display { font-family: 'Courier New', monospace; font-size: 14px; background: #001f29; padding: 10px; border-radius: 5px; }\n");
-    fprintf(*html_file, ".getted-text { color: #888888; }\n");
-    fprintf(*html_file, ".cursor { color: #ff4444; font-weight: bold; }\n");
-    fprintf(*html_file, ".notgetted-text { color: #ffffff; }\n");
-    fprintf(*html_file, ".buffer-stats { margin-top: 10px; color: #66d9ff; font-size: 12px; }\n");
+    fprintf (*html_file, ".parsing-section { margin: 20px 0; padding: 15px; background: #002b36; border: 1px solid #005a73; }\n");
+    fprintf (*html_file, ".buffer-display { font-family: 'Courier New', monospace; font-size: 25px; background: #001f29; padding: 10px; border-radius: 5px; }\n");
+    fprintf (*html_file, ".getted-text { color: #888888; }\n");
+    fprintf (*html_file, ".cursor { color: #ff4444; font-weight: bold; }\n");
+    fprintf (*html_file, ".notgetted-text { color: #ffffff; }\n");
+    fprintf (*html_file, ".buffer-stats { margin-top: 10px; color: #66d9ff; font-size: 20px; }\n");
+    fprintf (*html_file, "  table { border-collapse: collapse; margin: 10px; font-size: 18px; }\n");
+    fprintf (*html_file, "  th, td { border: 1px solid #0077a3; padding: 8px; }\n");
 
     fprintf (*html_file, "</style>\n");
     fprintf (*html_file, "</head>\n");
@@ -468,28 +477,48 @@ void EscapeHtml(const char* input, char* output, size_t output_size)
 
     while (*src && remaining > 1)
     {
+        const char *escape_sequence = NULL;
+
         switch (*src)
         {
             case '&':
-                if (remaining > 5) { strncpy(dest, "&amp;", 6); dest += 5; remaining -= 5; }
+                escape_sequence = "&amp;";
                 break;
             case '<':
-                if (remaining > 4) { strncpy(dest, "&lt;", 5); dest += 4; remaining -= 4; }
+                escape_sequence = "&lt;";
                 break;
             case '>':
-                if (remaining > 4) { strncpy(dest, "&gt;", 5); dest += 4; remaining -= 4; }
+                escape_sequence = "&gt;";
                 break;
             case '"':
-                if (remaining > 6) { strncpy(dest, "&quot;", 7); dest += 6; remaining -= 6; }
+                escape_sequence = "&quot;";
                 break;
             case '\'':
-                if (remaining > 6) { strncpy(dest, "&apos;", 7); dest += 6; remaining -= 6; }
+                escape_sequence = "&apos;";
                 break;
             default:
                 *dest++ = *src;
                 remaining--;
                 break;
         }
+
+        if (escape_sequence)
+        {
+            size_t escape_sequence_size = strlen(escape_sequence);
+
+            if (remaining > escape_sequence_size)
+            {
+                strncpy(dest, escape_sequence, escape_sequence_size + 1);
+                dest += escape_sequence_size;
+                remaining -= escape_sequence_size;
+            }
+            else
+            {
+                *dest++ = *src;
+                remaining--;
+            }
+        }
+
         src++;
     }
     *dest = '\0';
@@ -497,27 +526,27 @@ void EscapeHtml(const char* input, char* output, size_t output_size)
 
 void PrintBuffer (FILE* html_file, const char* buffer_start, size_t position)
 {
-    fprintf(html_file, "<div class='parsing-section'>\n");
-    fprintf(html_file, "<h4>Buffer:</h4>\n");
-    fprintf(html_file, "<div class='buffer-display'>\n");
+    fprintf(html_file, "\n\t<div class='parsing-section'>\n");
+    fprintf(html_file, "\t<h4>Buffer:</h4>\n");
+    fprintf(html_file, "\t<div class='buffer-display'>\n");
 
     size_t show_len = strlen(buffer_start);
     if (show_len > 500) show_len = 500;
 
-    fprintf(html_file, "<span class='getted-text'>%.*s</span>",
+    fprintf(html_file, "\t<span class='getted-text'>%.*s</span>",
             (int)position, buffer_start);
-    fprintf(html_file, "<span class='cursor'>|</span>");
-    fprintf(html_file, "<span class='notgetted-text'>%.*s</span>",
+    fprintf(html_file, "\t<span class='cursor'>|</span>");
+    fprintf(html_file, "\t<span class='notgetted-text'>%.*s</span>",
             (int)(show_len - position), buffer_start + position);
-    fprintf(html_file, "</div>\n");
+    fprintf(html_file, "\t</div>\n");
 
     size_t len = strlen(buffer_start);
     if (len > 0)
     {
         int percent = (int)((position * 100) / len);
-        fprintf(html_file, "<div class='buffer-stats'>Position: %u/%u (%d%%)</div>\n",
+        fprintf(html_file, "\t<div class='buffer-stats'>Position: %u/%u (%d%%)</div>\n",
                (unsigned)position, (unsigned)len, percent);
     }
 
-    fprintf(html_file, "</div>\n");
+    fprintf(html_file, "\t</div>\n");
 }
